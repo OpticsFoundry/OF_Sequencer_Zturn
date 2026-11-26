@@ -71,9 +71,25 @@ Firmware built from this repository from 2026-11-26 on can write a new boot imag
 
 3. The update of a 4.4 MB image takes about 25 s (erase 14 s, program 8 s, read-back verification 1.5 s). Don't switch the board off during that time. After the reboot, the board is reachable again after about 10 s.
 
-`DemoSequencerFirmwareInfo()` (`CLA_GetSequencerFirmwareInfo`, Python `get_sequencer_firmware_info`) shows the build date and time of the running firmware and whether it was booted from QSPI flash or SD card.
+`DemoSequencerFirmwareInfo()` (`CLA_GetSequencerFirmwareInfo`, Python `get_sequencer_firmware_info`) shows the build date and time of the running firmware, whether it was booted from QSPI flash or SD card, from which flash image it was booted, and whether the flash contains valid primary and backup images.
 
-Before erasing anything, the firmware receives the complete image and checks its size, its CRC32 checksum and its Zynq boot header. It refuses to update while a sequence is running. After programming, it reads the flash back and compares it to the image. The running firmware executes from DDR memory, so it can rewrite the QSPI flash it was booted from. The Ethernet commands (`get_firmware_info`, `update_firmware_qspi`, `reboot_system`) are described in OpticsFoundry_Seq_Zturn_App/src/firmware_update.h.
+Before erasing anything, the firmware receives the complete image and checks its size, its CRC32 checksum and its Zynq boot header. It refuses to update while a sequence is running. After programming, it reads the flash back and compares it to the image. The running firmware executes from DDR memory, so it can rewrite the QSPI flash it was booted from. The Ethernet commands (`get_firmware_info`, `update_firmware_qspi`, `update_backup_firmware_qspi`, `test_backup_boot`, `reboot_system`) are described in OpticsFoundry_Seq_Zturn_App/src/firmware_update.h.
+
+### Backup image
+
+The 16 MB QSPI flash holds two boot images:
+
+| QSPI offset | Content |
+|---|---|
+| 0x000000 | primary image, written by `CLA_UpdateSequencerFirmware` and by Vitis "Program Flash" |
+| 0x800000 | backup image, written by `CLA_UpdateSequencerBackupFirmware` (Python `update_sequencer_backup_firmware`) |
+| 0xFF0000 | reserved for settings |
+
+If the primary image has no valid boot header, the Zynq BootROM boots the backup image. Images are written with their boot header last, so an update that is interrupted, e.g. by a power failure, leaves the primary image without a valid boot header, and the board boots the backup image. FSBL also falls back to the backup image if it can't load the partitions of the primary image. The firmware info then reports "image BACKUP". Write the primary image again to recover.
+
+Write a well tested firmware as backup image, e.g. by setting `AlsoUpdateBackupImage` in `DemoUpdateSequencerFirmware()` once the new firmware has proven itself. The sequencer refuses to write the backup image while the primary image is invalid. The Ethernet command `test_backup_boot` erases the boot header of the primary image and reboots, to check that the backup image boots; afterwards write the primary image again.
+
+The backup image doesn't help if a new primary image boots, but doesn't work (e.g. has no network connection). In that case, boot from SD card or use JTAG. Vitis "Program Flash" only erases the flash sectors it writes, so it keeps the backup image (unless "erase all" is selected).
 
 ### Booting from SD card
 
@@ -84,12 +100,20 @@ To recover from a failed update (e.g. a power failure during programming), to up
 3. If needed, use the Ethernet update described above to write the firmware into the QSPI flash.
 4. Switch the board off, set both jumpers to Closed (QSPI boot mode, Photo 2), and switch it on again.
 
+## MAC address and finding sequencers on the network
+
+Firmware from 2026-11-26 on gives each board its own MAC address 02:4F:46:xx:xx:xx ("OF", a locally administered address). xx:xx:xx are the lower 24 bits of the CRC32 of the factory programmed 64 bit unique ID of the Winbond QSPI flash. So several sequencers can be used on one network without changing the firmware. (If the flash has no unique ID, the previous fixed MAC address 00:0A:35:F1:01:03 is used.) The board gets its IP address by DHCP; when a board changes from older firmware to this one, its MAC address and usually also its IP address change.
+
+To find the sequencers and their IP addresses, e.g. for ControlHardwareConfig.json, run `DemoDiscoverSequencers()` in ControlLight.cpp (`CLA_DiscoverSequencers`, Python `discover_sequencers()`). It sends the UDP datagram "OpticsFoundry_discover" to port 57979 as broadcast on all network interfaces. Each sequencer answers with one line containing its MAC address, IP address, TCP port, firmware build and boot status. Sequencers with an IP address of another subnet answer by broadcast, so they can be found, too.
+
+Only one client can be connected to a sequencer at a time. A new TCP connection replaces the previous one, which is closed.
+
 
 ## Modifying the C code of the Z-turn V2 firmware
 
 This code is based on the Vitis example "lwIP echo server". Most of the sequencer specific code is contained in firefly.c.
 
-To change the IP configuration (MAC address, DHCP or static IP) follow the instructions in
+To change the IP configuration (DHCP or static IP; the MAC address is computed in sequencer_identity.c) follow the instructions in
 
 C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundry_Seq_Zturn_App\src\main.c.
 
@@ -129,4 +153,18 @@ Open the project and then "Open Block Design". After the project has fully loade
 The main part of the code is contained in the file core.sv (under core_wrapper -> core_inst: core). It shouldn't be too difficult to understand the design by reading this file. It might be informative to read it to understand the sequences that OpticsFoundry_Control and OpticsFoundry_ControlLight send to the sequencer. (You can inspect an ASCII file dump of those sequences by enabling the "Debug FPGA buffer" option in the "System debug options" menu of OpticsFoundry_Control).
 
 The pinout to the Z-turn Board V2 header is defined under "Constraints -> constr_1 -> MicroZed_constraints.xdc".
+
+## ToDo
+
+Network and maintenance:
+- Command to set a fixed MAC address and/or a fixed IP address (or switch back to the defaults), stored in the settings sector of the QSPI flash (0xFF0000), with a way to reset it if the board becomes unreachable (e.g. a UDP command addressed by MAC address, or a button pressed at boot).
+- "Trial boot": a watchdog plus confirmation of a new primary image by the PC, falling back to the backup image if a new image boots but doesn't work. Needs a modified FSBL.
+- Authentication of the PC, at least for firmware updates (signed images, or pairing with a button press).
+
+Found in the code review of 2026-11-26 and not yet changed (functional issues, not memory safety):
+- `cs_execute_sequence` with a negative Ethernet check period doesn't service the network, so such a CPU command sequence can't be stopped. `wait_till_finished` with a timeout <= 1 ms also doesn't service the network (by design, for speed).
+- CPU command sequencer: `PID` reads `args[7]` although it is declared with 7 arguments; `GetFPGABuffer` is declared with 1 argument but uses 2; the type checks of `SetFPGABuffer`, `SetAD9854*`, `SetAnalogOut` and `RunFastVCOLoop` use `||` where `&&` is meant; `Foo ` and `Foo` (trailing space) are different variable names.
+- The test commands `test2` and `adc` overwrite the loaded sequence and flush the cache with a wrong address range.
+- `ReadInputBuffer` uses `>` instead of `>=` in a bounds check; `FireflyControl_start` truncates a 64-bit start position to 32 bits.
+- In `ExtIrq_Handler`, the computation of `TransferToDo` (`extended_addr / (DMA0TransferSize/4)`) looks inconsistent with the 32768-command BRAM halves and should be checked.
 
