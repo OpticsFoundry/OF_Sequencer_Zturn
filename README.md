@@ -100,6 +100,20 @@ To recover from a failed update (e.g. a power failure during programming), to up
 3. If needed, use the Ethernet update described above to write the firmware into the QSPI flash.
 4. Switch the board off, set both jumpers to Closed (QSPI boot mode, Photo 2), and switch it on again.
 
+### Installing the firmware on a new board with an SD card (no JTAG programmer needed)
+
+A board with any other firmware in its QSPI flash (e.g. a factory fresh Z-turn) can be set up with an installer SD card:
+
+1. Format a microSD card with FAT32 (FAT16 also works). Copy BOOT.bin onto it, named BOOT.BIN, and create an empty file named INSTALL (any extension, e.g. INSTALL.txt) next to it, both in the root folder.
+   To copy the firmware of a working board instead, put the card into the PC's card reader and call `CLA_CopySequencerFirmwareToSDCard(Sequencer, "E:\\")` (Python: `copy_sequencer_firmware_to_sd_card`, demo: `DemoCopySequencerFirmwareToSDCard()` in ControlLight.cpp). It reads the firmware from the board's QSPI flash over Ethernet (the image it booted from, after an SD card boot its primary image) and writes BOOT.BIN and INSTALL onto the card. `CLA_SaveSequencerFirmware(Sequencer, "file.bin")` saves that image as a file. Both need firmware from 2026-11-26 (evening) on, which has the Ethernet command `read_firmware_image`.
+2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. Make sure both jumpers are seated properly: with both jumpers open, the board doesn't boot at all.
+3. The firmware copies BOOT.BIN into both QSPI image slots (primary and backup) and verifies them. This takes about a minute. The status LED (LED1 on the front panel of the carrier board) is blue meanwhile, then green with two short beeps when the firmware was installed, or one short beep if the QSPI flash already contained exactly this image. Red and three long beeps mean an error; the USB UART output (115200 baud) and the firmware info (`DemoSequencerFirmwareInfo()`) give details. Don't switch the board off while the LED is blue. (If that happens anyway, simply boot from the installer card again.)
+4. Switch the board off, set both jumpers to Closed (QSPI boot mode), remove the SD card, and switch it on again.
+
+The carrier board's LED1 is an inverted copy of the Z-turn's onboard RGB LED. The firmware drives the LED such that LED1 on the front panel shows the intended colour, so the onboard LED shows the complementary colour (`STATUS_LED_ACTIVE_LOW` in FireflyControl.c).
+
+Without the INSTALL file, booting from the SD card works as described above and doesn't change the QSPI flash. The Ethernet command `install_from_sd` installs BOOT.BIN from an SD card inserted into a running board, independent of the boot mode and of the INSTALL file (see sd_installer.h).
+
 ## MAC address and finding sequencers on the network
 
 Firmware from 2026-11-26 on gives each board its own MAC address 02:4F:46:xx:xx:xx ("OF", a locally administered address). xx:xx:xx are the lower 24 bits of the CRC32 of the factory programmed 64 bit unique ID of the Winbond QSPI flash. So several sequencers can be used on one network without changing the firmware. (If the flash has no unique ID, the previous fixed MAC address 00:0A:35:F1:01:03 is used.) The board gets its IP address by DHCP; when a board changes from older firmware to this one, its MAC address and usually also its IP address change.
@@ -161,10 +175,8 @@ Network and maintenance:
 - "Trial boot": a watchdog plus confirmation of a new primary image by the PC, falling back to the backup image if a new image boots but doesn't work. Needs a modified FSBL.
 - Authentication of the PC, at least for firmware updates (signed images, or pairing with a button press).
 
-Found in the code review of 2026-11-26 and not yet changed (functional issues, not memory safety):
+Found in the code review of 2026-11-26 and not yet changed (design decisions rather than bugs):
 - `cs_execute_sequence` with a negative Ethernet check period doesn't service the network, so such a CPU command sequence can't be stopped. `wait_till_finished` with a timeout <= 1 ms also doesn't service the network (by design, for speed).
-- CPU command sequencer: `PID` reads `args[7]` although it is declared with 7 arguments; `GetFPGABuffer` is declared with 1 argument but uses 2; the type checks of `SetFPGABuffer`, `SetAD9854*`, `SetAnalogOut` and `RunFastVCOLoop` use `||` where `&&` is meant; `Foo ` and `Foo` (trailing space) are different variable names.
-- The test commands `test2` and `adc` overwrite the loaded sequence and flush the cache with a wrong address range.
-- `ReadInputBuffer` uses `>` instead of `>=` in a bounds check; `FireflyControl_start` truncates a 64-bit start position to 32 bits.
-- In `ExtIrq_Handler`, the computation of `TransferToDo` (`extended_addr / (DMA0TransferSize/4)`) looks inconsistent with the 32768-command BRAM halves and should be checked.
+- The test commands `test2` and `adc` can be sent over the network and overwrite the loaded sequence.
+- The build date and time reported by `get_firmware_info` come from compiling firmware_update.c; they are only updated when that file is recompiled (e.g. after "Clean").
 
