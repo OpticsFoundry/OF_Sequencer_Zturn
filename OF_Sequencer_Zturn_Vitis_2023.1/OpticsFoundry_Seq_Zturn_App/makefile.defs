@@ -1,0 +1,12 @@
+# Included by the makefile that Vitis generates in Debug/ (and Release/), for builds in the Vitis IDE and on the command line.
+# Vitis doesn't overwrite this file.
+
+# This file is included before the "all" target is defined, so keep "all" the default goal of a plain "make".
+.DEFAULT_GOAL := all
+
+# Always recompile firmware_update.c, so that the build date and time reported by get_firmware_info (__DATE__ and __TIME__
+# in firmware_update.c) are those of the build that produced the image, not of the last change of firmware_update.c.
+src/firmware_update.o: FORCE_FIRMWARE_BUILD_DATE
+
+.PHONY: FORCE_FIRMWARE_BUILD_DATE
+FORCE_FIRMWARE_BUILD_DATE:

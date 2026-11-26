@@ -133,6 +133,12 @@ C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundr
 
 Project specific TCP/IP communication code is contained in echo.c. An interpreter for a very simple programing language running on the ARM core of the MircroZed is implemented using the code in the OpticsFoundryCPUCommandSequencer folder.
 
+Network servicing while the firmware is busy (since 2026-11-27): a CPU command sequence started with an Ethernet check period of n > 0 ms services the network every n ms; with a period <= 0 (fast mode) every 100 ms (`FAST_MODE_NETWORK_SERVICE_PERIOD_MS` in FireflyControl.h), so that it can always be stopped with `cs_stop_sequence`. `wait_till_finished` with a timeout <= 1 ms also services the network every 100 ms. Before, a period >= 0 serviced the network after every command (about 10% slower), and the fast modes never did. The interpreter command `CheckEthernetCommand(n)` services the network if at least n ms have passed since the last time (n <= 0: always).
+
+The development test commands `test1`, `test2`, `test_timer` and `adc` are disabled (`ENABLE_TEST_COMMANDS` in FireflyControl.c), because they overwrite the loaded sequence, switch the clock or block the firmware. When enabled for a development build, they are ignored while a sequence is running.
+
+The build date and time reported by `get_firmware_info` are those of the build: makefile.defs in the application folder (included by the makefile Vitis generates) makes every build recompile firmware_update.c.
+
 
 ## To create the FPGA bitstream
 
@@ -174,9 +180,5 @@ Network and maintenance:
 - Command to set a fixed MAC address and/or a fixed IP address (or switch back to the defaults), stored in the settings sector of the QSPI flash (0xFF0000), with a way to reset it if the board becomes unreachable (e.g. a UDP command addressed by MAC address, or a button pressed at boot).
 - "Trial boot": a watchdog plus confirmation of a new primary image by the PC, falling back to the backup image if a new image boots but doesn't work. Needs a modified FSBL.
 - Authentication of the PC, at least for firmware updates (signed images, or pairing with a button press).
-
-Found in the code review of 2026-11-26 and not yet changed (design decisions rather than bugs):
-- `cs_execute_sequence` with a negative Ethernet check period doesn't service the network, so such a CPU command sequence can't be stopped. `wait_till_finished` with a timeout <= 1 ms also doesn't service the network (by design, for speed).
-- The test commands `test2` and `adc` can be sent over the network and overwrite the loaded sequence.
-- The build date and time reported by `get_firmware_info` come from compiling firmware_update.c; they are only updated when that file is recompiled (e.g. after "Clean").
+- `wait_till_finished` can't be interrupted from the PC (only `cs_stop_sequence` and `cs_interrupt_sequence` are handled while the firmware is busy; a `stop` command waits in the queue).
 
