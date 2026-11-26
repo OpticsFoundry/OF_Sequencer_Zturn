@@ -59,6 +59,31 @@ Use [OpticsFoundry_ControlLight](https://github.com/opticsfoundry/OpticsFoundry_
 ![Using the Z-turn V2](Photos/using_Z-turn_V2.jpeg)
 **Photo 2:** Using the Z-turn V2; pay attention to setting JP2 to Closed.
 
+## Updating the firmware over Ethernet
+
+Firmware built from this repository from 2026-11-26 on can write a new boot image into its own QSPI flash over Ethernet. No JTAG programmer is needed. (A board running older firmware needs to be updated once using JTAG, see above, or an SD card, see below.)
+
+1. In Vitis, build the firmware and select "Create Boot Image", as described above. This creates
+
+   C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundry_Seq_Zturn_App_system\_ide\bootimage\BOOT.bin
+
+2. In [OpticsFoundry_ControlLight](https://github.com/opticsfoundry/OpticsFoundry_ControlLight), run `DemoUpdateSequencerFirmware()` in ControlLight.cpp. It calls `CLA_UpdateSequencerFirmware(0, "...\\BOOT.bin")` and then `CLA_RebootSequencer(0)`. In Python, use `update_sequencer_firmware(0, path)` and `reboot_sequencer(0)`.
+
+3. The update of a 4.4 MB image takes about 25 s (erase 14 s, program 8 s, read-back verification 1.5 s). Don't switch the board off during that time. After the reboot, the board is reachable again after about 10 s.
+
+`DemoSequencerFirmwareInfo()` (`CLA_GetSequencerFirmwareInfo`, Python `get_sequencer_firmware_info`) shows the build date and time of the running firmware and whether it was booted from QSPI flash or SD card.
+
+Before erasing anything, the firmware receives the complete image and checks its size, its CRC32 checksum and its Zynq boot header. It refuses to update while a sequence is running. After programming, it reads the flash back and compares it to the image. The running firmware executes from DDR memory, so it can rewrite the QSPI flash it was booted from. The Ethernet commands (`get_firmware_info`, `update_firmware_qspi`, `reboot_system`) are described in OpticsFoundry_Seq_Zturn_App/src/firmware_update.h.
+
+### Booting from SD card
+
+To recover from a failed update (e.g. a power failure during programming), to update a board running older firmware without a JTAG programmer, or to test firmware without overwriting the QSPI flash, boot the Z-turn V2 from a microSD card:
+
+1. Format a microSD card with FAT32 and copy BOOT.bin onto it, named BOOT.BIN.
+2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. The boot mode jumpers are only read at power-on.
+3. If needed, use the Ethernet update described above to write the firmware into the QSPI flash.
+4. Switch the board off, set both jumpers to Closed (QSPI boot mode, Photo 2), and switch it on again.
+
 
 ## Modifying the C code of the Z-turn V2 firmware
 
