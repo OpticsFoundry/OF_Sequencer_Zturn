@@ -73,13 +73,13 @@ Firmware built from this repository from 2026-11-26 on can write a new boot imag
 
    C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundry_Seq_Zturn_App_system\_ide\bootimage\BOOT.bin
 
-2. In [OpticsFoundry_ControlLight](https://github.com/opticsfoundry/OpticsFoundry_ControlLight), run `DemoUpdateSequencerFirmware()` in ControlLight.cpp. It calls `CLA_UpdateSequencerFirmware(0, "...\\BOOT.bin")` and then `CLA_RebootSequencer(0)`. In Python, use `update_sequencer_firmware(0, path)` and `reboot_sequencer(0)`.
+2. In [OpticsFoundry_ControlLight](https://github.com/opticsfoundry/OpticsFoundry_ControlLight), run `DemoUpdateSequencerFirmware()` in ControlLight.cpp. It calls `CLA_UpdateSequencerFirmware(0, "...\\BOOT.bin")` and then `CLA_RebootSequencerWithTrialBoot(0)` (see "Trial boot" below; `CLA_RebootSequencer(0)` reboots without trial). In Python, use `update_sequencer_firmware(0, path)` and `reboot_sequencer_with_trial_boot(0)` (or `reboot_sequencer(0)`).
 
 3. The update of a 4.4 MB image takes about 25 s (erase 14 s, program 8 s, read-back verification 1.5 s). Don't switch the board off during that time. After the reboot, the board is reachable again after about 10 s.
 
 `DemoSequencerFirmwareInfo()` (`CLA_GetSequencerFirmwareInfo`, Python `get_sequencer_firmware_info`) shows the build date and time of the running firmware, whether it was booted from QSPI flash or SD card, from which flash image it was booted, and whether the flash contains valid primary and backup images.
 
-Before erasing anything, the firmware receives the complete image and checks its size, its CRC32 checksum and its Zynq boot header. It refuses to update while a sequence is running. After programming, it reads the flash back and compares it to the image. The running firmware executes from DDR memory, so it can rewrite the QSPI flash it was booted from. The Ethernet commands (`get_firmware_info`, `update_firmware_qspi`, `update_backup_firmware_qspi`, `test_backup_boot`, `reboot_system`) are described in OpticsFoundry_Seq_Zturn_App/src/firmware_update.h.
+Before erasing anything, the firmware receives the complete image and checks its size, its CRC32 checksum and its Zynq boot header. It refuses to update while a sequence is running. After programming, it reads the flash back and compares it to the image. The running firmware executes from DDR memory, so it can rewrite the QSPI flash it was booted from. The Ethernet commands (`get_firmware_info`, `update_firmware_qspi`, `update_backup_firmware_qspi`, `test_backup_boot`, `reboot_system`) are described in OpticsFoundry_Seq_Zturn_App/src/firmware_update.h, `trial_reboot` and `confirm_firmware` in trial_boot.h.
 
 ### Backup image
 
@@ -89,13 +89,23 @@ The 16 MB QSPI flash holds two boot images:
 |---|---|
 | 0x000000 | primary image, written by `CLA_UpdateSequencerFirmware` and by Vitis "Program Flash" |
 | 0x800000 | backup image, written by `CLA_UpdateSequencerBackupFirmware` (Python `update_sequencer_backup_firmware`) |
-| 0xFF0000 | reserved for settings |
+| 0xFF0000 | settings: network settings (0xFF0000, 0xFF1000), trial boot record (0xFF2000) |
 
 If the primary image has no valid boot header, the Zynq BootROM boots the backup image. Images are written with their boot header last, so an update that is interrupted, e.g. by a power failure, leaves the primary image without a valid boot header, and the board boots the backup image. FSBL also falls back to the backup image if it can't load the partitions of the primary image. The firmware info then reports "image BACKUP". Write the primary image again to recover.
 
 Write a well tested firmware as backup image, e.g. by setting `AlsoUpdateBackupImage` in `DemoUpdateSequencerFirmware()` once the new firmware has proven itself. The sequencer refuses to write the backup image while the primary image is invalid. The Ethernet command `test_backup_boot` erases the boot header of the primary image and reboots, to check that the backup image boots; afterwards write the primary image again.
 
-The backup image doesn't help if a new primary image boots, but doesn't work (e.g. has no network connection). In that case, boot from SD card or use JTAG. Vitis "Program Flash" only erases the flash sectors it writes, so it keeps the backup image (unless "erase all" is selected).
+By itself, the backup image doesn't help if a new primary image boots, but doesn't work (e.g. hangs or has no network connection). Trial boot (below) covers that case. Without it, boot from SD card or use JTAG. Vitis "Program Flash" only erases the flash sectors it writes, so it keeps the backup image (unless "erase all" is selected).
+
+### Trial boot
+
+Since 2026-11-27 a new primary image can be booted "on trial": `CLA_RebootSequencerWithTrialBoot(0)` (Python `reboot_sequencer_with_trial_boot(0)`), called after `CLA_UpdateSequencerFirmware`, reboots the sequencer with a watchdog running, waits until the new firmware answers (about 8 s), checks that it runs the image just written, and confirms it. The confirmation stops the watchdog; from then on the firmware runs without watchdog, as before. If the new firmware isn't confirmed within 120 s (it hangs, has no network, crashes, or the PC is gone), the watchdog resets the board and it boots the backup image. The backup firmware then erases the boot header of the failed primary image, so that the board keeps booting the backup image also after power cycles, and `get_firmware_info` reports "trial boot: FAILED ...". Write a new primary image to recover. A failed trial takes about 50 s with a 30 s timeout (tested).
+
+Requirements: the running firmware and the new image both support trial boot (built from 2026-11-27 on; the sequencer checks the new image for marker strings in its FSBL and application and refuses otherwise), and there is a valid backup image that is not the same as the new image. For a complete fallback, the backup firmware should support trial boot, too; an older backup firmware still boots, but then the board tries the failed primary image again (with trial) after each power cycle. Write the new firmware as backup image only after it has been confirmed (`AlsoUpdateBackupImage` in `DemoUpdateSequencerFirmware()` does that).
+
+How it works: the running firmware stores a "pending" trial record (size and CRC32 of the new image, timeout) at QSPI offset 0xFF2000 and reboots. The FSBL (OpticsFoundry_Seq_Zturn_Platform/zynq_fsbl/of_trial_boot.c, called from main.c) finds the record, checks the CRC32 of the primary image and the boot header of the backup image, sets a bit in the REBOOT_STATUS register and starts the Cortex-A9 private watchdog (AWDT0, which resets the whole system; no change of the Vivado design is needed). REBOOT_STATUS survives the watchdog reset, so after an unconfirmed trial the FSBL boots the backup image instead. A deliberate reboot during the trial, or a power cycle, starts a new trial. While a firmware runs on trial and isn't confirmed, firmware updates are refused. Details: OpticsFoundry_Seq_Zturn_App/src/trial_boot.h (Ethernet commands `trial_reboot`, `confirm_firmware`).
+
+The FSBL is part of the platform project. Vitis copies the built fsbl.elf to OpticsFoundry_Seq_Zturn_Platform/export/.../boot/fsbl.elf, which "Create Boot Image" uses: after changing the FSBL, build the platform (or run make in zynq_fsbl and copy fsbl.elf there). If Vitis ever regenerates the FSBL sources, add of_trial_boot.c/.h and the call of `OfTrialBoot_Check()` in main.c again.
 
 ### Installing the firmware using a JTAG programmer
 
@@ -199,6 +209,6 @@ The pinout to the Z-turn Board V2 header is defined under "Constraints -> constr
 Network and maintenance:
 - (done 2026-11-27: fixed IP address or DHCP with link-local fallback, reset by UDP command or USR button at power-on; MAC address and port deliberately not configurable)
 - Second reset button on the front panel, on an unused Z-turn header pin (needs a bitstream change, or an MIO pin).
-- "Trial boot": a watchdog plus confirmation of a new primary image by the PC, falling back to the backup image if a new image boots but doesn't work. Needs a modified FSBL.
+- (done 2026-11-27: "trial boot": a watchdog plus confirmation of a new primary image by the PC, falling back to the backup image if a new image boots but doesn't work; see "Trial boot" above)
 - Authentication of the PC, at least for firmware updates (signed images, or pairing with a button press).
 

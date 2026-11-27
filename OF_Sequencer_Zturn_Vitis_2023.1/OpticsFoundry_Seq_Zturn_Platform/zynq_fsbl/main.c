@@ -113,6 +113,7 @@
 #include "xstatus.h"
 #include "fsbl_hooks.h"
 #include "xtime_l.h"
+#include "of_trial_boot.h"
 
 #ifdef XPAR_XWDTPS_0_BASEADDR
 #include "xwdtps.h"
@@ -380,6 +381,8 @@ int main(void)
 		InitQspi();
 		MoveImage = QspiAccess;
 		fsbl_printf(DEBUG_INFO,"QSPI Init Done \r\n");
+		/* OpticsFoundry: trial boot of a new primary image, see of_trial_boot.c */
+		OfTrialBoot_Check();
 	} else
 #endif
 
