@@ -57,8 +57,11 @@ C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundr
 
 onto it, named BOOT.BIN, and create an empty file named INSTALL (any extension, e.g. INSTALL.txt) next to it, both in the root folder.
    To copy the firmware of a working board instead, put the card into the PC's card reader and call `CLA_CopySequencerFirmwareToSDCard(Sequencer, "E:\\")` (Python: `copy_sequencer_firmware_to_sd_card`, demo: `DemoCopySequencerFirmwareToSDCard()` in ControlLight.cpp). It reads the firmware from the board's QSPI flash over Ethernet (the image it booted from, after an SD card boot its primary image) and writes BOOT.BIN and INSTALL onto the card. `CLA_SaveSequencerFirmware(Sequencer, "file.bin")` saves that image as a file. Both need firmware from 2026-11-26 (evening) on, which has the Ethernet command `read_firmware_image`.
+
 2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. Make sure both jumpers are seated properly: with both jumpers open, the board doesn't boot at all.
+
 3. The firmware copies BOOT.BIN into both QSPI image slots (primary and backup) and verifies them. This takes about 50 s (about 25 s per slot; slots that already contain the image are skipped). Meanwhile the status LED (LED1 on the front panel of the carrier board, and the Z-turn RGB LED) blinks blue, toggling with each 64 KB block written or checked (since 2026-11-27; before, it was steadily blue), then green with two short beeps when the firmware was installed, or one short beep if the QSPI flash already contained exactly this image. Red and three long beeps mean an error; the USB UART output (115200 baud) and the firmware info (`DemoSequencerFirmwareInfo()`) give details. Don't switch the board off while the LED blinks blue. (If that happens anyway, simply boot from the installer card again.)
+
 4. Switch the board off, set both jumpers to Closed (QSPI boot mode), remove the SD card, and switch it on again.
 
 The carrier board's LED1 is an inverted copy of the Z-turn's onboard RGB LED. The firmware drives the LED such that LED1 on the front panel shows the intended colour, so the onboard LED shows the complementary colour (`STATUS_LED_ACTIVE_LOW` in FireflyControl.c).
