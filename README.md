@@ -51,12 +51,7 @@ Right click on projects in "Explorer" and select "Build all", or just "Build", t
 
 A board with any other firmware in its QSPI flash (e.g. a factory fresh Z-turn) can be set up with an installer SD card:
 
-1. Format a microSD card with FAT32 (FAT16 also works). Copy    
-
-C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundry_Seq_Zturn_App_system\_ide\bootimage\BOOT.bin 
-
-onto it, named BOOT.BIN, and create an empty file named INSTALL (any extension, e.g. INSTALL.txt) next to it, both in the root folder.
-   To copy the firmware of a working board instead, put the card into the PC's card reader and call `CLA_CopySequencerFirmwareToSDCard(Sequencer, "E:\\")` (Python: `copy_sequencer_firmware_to_sd_card`, demo: `DemoCopySequencerFirmwareToSDCard()` in ControlLight.cpp). It reads the firmware from the board's QSPI flash over Ethernet (the image it booted from, after an SD card boot its primary image) and writes BOOT.BIN and INSTALL onto the card. `CLA_SaveSequencerFirmware(Sequencer, "file.bin")` saves that image as a file. Both need firmware from 2026-11-26 (evening) on, which has the Ethernet command `read_firmware_image`.
+1. Format a microSD card with FAT32 (FAT16 also works). Copy .\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundry_Seq_Zturn_App_system\_ide\bootimage\BOOT.bin onto it, named BOOT.BIN, and create an empty file named INSTALL (any extension, e.g. INSTALL.txt) next to it, both in the root folder. To copy the firmware of a working board instead, put the card into the PC's card reader and call `CLA_CopySequencerFirmwareToSDCard(Sequencer, "E:\\")` (Python: `copy_sequencer_firmware_to_sd_card`, demo: `DemoCopySequencerFirmwareToSDCard()` in ControlLight.cpp). It reads the firmware from the board's QSPI flash over Ethernet (the image it booted from, after an SD card boot its primary image) and writes BOOT.BIN and INSTALL onto the card. `CLA_SaveSequencerFirmware(Sequencer, "file.bin")` saves that image as a file. Both need firmware from 2026-11-26 (evening) on, which has the Ethernet command `read_firmware_image`.
 
 2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. Make sure both jumpers are seated properly: with both jumpers open, the board doesn't boot at all.
 
