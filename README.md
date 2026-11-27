@@ -47,18 +47,6 @@ Right click on "Assistant" OpticsFoundry_Seq_Zturn_App -> Release and select it.
 
 Right click on projects in "Explorer" and select "Build all", or just "Build", then "Create Boot Image".
 
-Connect the Z-turn V2 to power using a Mini USB cable. Connect a suitable JTAG programmer to your PC, e.g. a Digilent JTAG-HS2 using a Micro USB cable. Plug both USB cables into the same computer. Connect the JTAG programmer to the Z-turn Board V2 using an adapter cable or board. If you use the adapter cable delivered with your control system: the side with the cable marked in red points towards the edge of the Z-turn board and goes into the VDD pin of the Digilent JTAG-HS2. To enter JTAG programming mode, you need to set JP1 of the Z-turn board to Closed and JP2 to Open before connecting the board to power, see Photo 1 below. 
-
-After powering on the Z-turn and the JTAG programmer, select "Explorer" -> "Program Flash". If the JTAG cable is not detected, you might have to download the lated Digilent driver. After you finish programming, you need to set both jumpers to Closed, see Photo 2 below.
-
-Use [OpticsFoundry_ControlLight](https://github.com/opticsfoundry/OpticsFoundry_ControlLight) to test the sequencer.
-
-![Programming the Z-turn V2](Photos/programming_Z-turn_V2.jpeg)
-**Photo 1:** Programming the Z-turn V2; pay attention to put JP2 to Open before powering up the board and to the programming cable orientation.
-
-![Using the Z-turn V2](Photos/using_Z-turn_V2.jpeg)
-**Photo 2:** Using the Z-turn V2; pay attention to setting JP2 to Closed.
-
 ### Installing the firmware on a new board with an SD card (no JTAG programmer needed)
 
 A board with any other firmware in its QSPI flash (e.g. a factory fresh Z-turn) can be set up with an installer SD card:
@@ -70,13 +58,12 @@ C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundr
 onto it, named BOOT.BIN, and create an empty file named INSTALL (any extension, e.g. INSTALL.txt) next to it, both in the root folder.
    To copy the firmware of a working board instead, put the card into the PC's card reader and call `CLA_CopySequencerFirmwareToSDCard(Sequencer, "E:\\")` (Python: `copy_sequencer_firmware_to_sd_card`, demo: `DemoCopySequencerFirmwareToSDCard()` in ControlLight.cpp). It reads the firmware from the board's QSPI flash over Ethernet (the image it booted from, after an SD card boot its primary image) and writes BOOT.BIN and INSTALL onto the card. `CLA_SaveSequencerFirmware(Sequencer, "file.bin")` saves that image as a file. Both need firmware from 2026-11-26 (evening) on, which has the Ethernet command `read_firmware_image`.
 2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. Make sure both jumpers are seated properly: with both jumpers open, the board doesn't boot at all.
-3. The firmware copies BOOT.BIN into both QSPI image slots (primary and backup) and verifies them. This takes about a minute. The status LED (LED1 on the front panel of the carrier board) is blue meanwhile, then green with two short beeps when the firmware was installed, or one short beep if the QSPI flash already contained exactly this image. Red and three long beeps mean an error; the USB UART output (115200 baud) and the firmware info (`DemoSequencerFirmwareInfo()`) give details. Don't switch the board off while the LED is blue. (If that happens anyway, simply boot from the installer card again.)
+3. The firmware copies BOOT.BIN into both QSPI image slots (primary and backup) and verifies them. This takes about 30 s (both slots; slots that already contain the image are skipped). The status LED (LED1 on the front panel of the carrier board) is blue meanwhile, then green with two short beeps when the firmware was installed, or one short beep if the QSPI flash already contained exactly this image. Red and three long beeps mean an error; the USB UART output (115200 baud) and the firmware info (`DemoSequencerFirmwareInfo()`) give details. Don't switch the board off while the LED is blue. (If that happens anyway, simply boot from the installer card again.)
 4. Switch the board off, set both jumpers to Closed (QSPI boot mode), remove the SD card, and switch it on again.
 
 The carrier board's LED1 is an inverted copy of the Z-turn's onboard RGB LED. The firmware drives the LED such that LED1 on the front panel shows the intended colour, so the onboard LED shows the complementary colour (`STATUS_LED_ACTIVE_LOW` in FireflyControl.c).
 
 Without the INSTALL file, booting from the SD card works as described below and doesn't change the QSPI flash. The Ethernet command `install_from_sd` installs BOOT.BIN from an SD card inserted into a running board, independent of the boot mode and of the INSTALL file (see sd_installer.h).
-
 
 ## Updating the firmware over Ethernet
 
@@ -110,20 +97,46 @@ Write a well tested firmware as backup image, e.g. by setting `AlsoUpdateBackupI
 
 The backup image doesn't help if a new primary image boots, but doesn't work (e.g. has no network connection). In that case, boot from SD card or use JTAG. Vitis "Program Flash" only erases the flash sectors it writes, so it keeps the backup image (unless "erase all" is selected).
 
+### Installing the firmware using a JTAG programmer
+
+Connect the Z-turn V2 to power using a Mini USB cable. Connect a suitable JTAG programmer to your PC, e.g. a Digilent JTAG-HS2 using a Micro USB cable. Plug both USB cables into the same computer. Connect the JTAG programmer to the Z-turn Board V2 using an adapter cable or board. If you use the adapter cable delivered with your control system: the side with the cable marked in red points towards the edge of the Z-turn board and goes into the VDD pin of the Digilent JTAG-HS2. To enter JTAG programming mode, you need to set JP1 of the Z-turn board to Closed and JP2 to Open before connecting the board to power, see Photo 1 below. 
+
+After powering on the Z-turn and the JTAG programmer, select "Explorer" -> "Program Flash". If the JTAG cable is not detected, you might have to download the lated Digilent driver. After you finish programming, you need to set both jumpers to Closed, see Photo 2 below.
+
+Use [OpticsFoundry_ControlLight](https://github.com/opticsfoundry/OpticsFoundry_ControlLight) to test the sequencer.
+
+![Programming the Z-turn V2](Photos/programming_Z-turn_V2.jpeg)
+**Photo 1:** Programming the Z-turn V2; pay attention to put JP2 to Open before powering up the board and to the programming cable orientation.
+
+![Using the Z-turn V2](Photos/using_Z-turn_V2.jpeg)
+**Photo 2:** Using the Z-turn V2; pay attention to setting JP2 to Closed.
+
 ### Booting from SD card
 
 To recover from a failed update (e.g. a power failure during programming), to update a board running older firmware without a JTAG programmer, or to test firmware without overwriting the QSPI flash, boot the Z-turn V2 from a microSD card:
 
-1. Format a microSD card with FAT32 and copy BOOT.bin onto it, named BOOT.BIN.
+1. Format a microSD card with FAT32 and copy BOOT.bin onto it, named BOOT.BIN. If a file named INSTALL is present on the SD card, the SD card's BOOT.BIN will be installed as new firmware in the QSPI flash. If you don't want that, make sure there is no file named INSTALL on the SD card.
 2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. The boot mode jumpers are only read at power-on.
-3. If needed, use the Ethernet update described above to write the firmware into the QSPI flash.
-4. Switch the board off, set both jumpers to Closed (QSPI boot mode, Photo 2), and switch it on again.
+3. To boot again from QSPI, switch the board off, set both jumpers to Closed (QSPI boot mode, Photo 2), and switch it on again.
 
 ## MAC address and finding sequencers on the network
 
-Firmware from 2026-11-26 on gives each board its own MAC address 02:4F:46:xx:xx:xx ("OF", a locally administered address). xx:xx:xx are the lower 24 bits of the CRC32 of the factory programmed 64 bit unique ID of the Winbond QSPI flash. So several sequencers can be used on one network without changing the firmware. (If the flash has no unique ID, the previous fixed MAC address 00:0A:35:F1:01:03 is used.) The board gets its IP address by DHCP; when a board changes from older firmware to this one, its MAC address and usually also its IP address change.
+Firmware from 2026-11-26 on gives each board its own MAC address 02:4F:46:xx:xx:xx ("OF", a locally administered address). xx:xx:xx are the lower 24 bits of the CRC32 of the factory programmed 64 bit unique ID of the Winbond QSPI flash. So several sequencers can be used on one network without changing the firmware. (If the flash has no unique ID, the previous fixed MAC address 00:0A:35:F1:01:03 is used.) When a board changes from older firmware to this one, its MAC address and usually also its IP address change. The MAC address and the TCP port 57978 can't be changed.
 
-To find the sequencers and their IP addresses, e.g. for ControlHardwareConfig.json, run `DemoDiscoverSequencers()` in ControlLight.cpp (`CLA_DiscoverSequencers`, Python `discover_sequencers()`). It sends the UDP datagram "OpticsFoundry_discover" to port 57979 as broadcast on all network interfaces. Each sequencer answers with one line containing its MAC address, IP address, TCP port, firmware build and boot status. Sequencers with an IP address of another subnet answer by broadcast, so they can be found, too.
+To find the sequencers and their IP addresses, e.g. for ControlHardwareConfig.json, run `DemoDiscoverSequencers()` in ControlLight.cpp (`CLA_DiscoverSequencers`, Python `discover_sequencers()`). It sends the UDP datagram "OpticsFoundry_discover" to port 57979 as broadcast on all network interfaces. Each sequencer answers with one line containing its MAC address, IP address, netmask, gateway, IP source (DHCP, fixed or link-local), TCP port, firmware build and boot status. Sequencers with an IP address of another subnet answer by broadcast, so they can be found, too.
+
+## IP address: DHCP or fixed (since 2026-11-27)
+
+- **DHCP** (factory setting): the board gets its IP address from a DHCP server. If none answers within 3 s, it uses a link-local address 169.254.x.y (netmask 255.255.0.0; x and y are derived from the MAC address, so the address is always the same for one board), as a PC without DHCP server does. A PC connected directly by cable then finds it without configuration, provided the PC's network adapter is also set to DHCP (Windows then also uses a 169.254.x.y address). DHCP keeps running in the background and replaces the link-local address when a server appears; if a DHCP lease is lost, the board returns to its link-local address after 3 s. (Before 2026-11-27 the fallback was 192.168.1.10.)
+- **Fixed IP**: stored IP address, netmask and optional gateway. Useful if the PC's network adapter has a fixed address, e.g. PC 192.168.1.1 and sequencer 192.168.1.10.
+
+Set it with `CLA_SetSequencerFixedIP` / `CLA_SetSequencerDHCP` (Python `set_sequencer_fixed_ip`, `set_sequencer_dhcp`), read it with `CLA_GetSequencerNetworkSettings`; see `DemoSequencerNetworkSettings()` in ControlLight.cpp. The sequencer stores the setting in the QSPI flash (settings sector 0xFF0000, two copies, so a power failure while writing keeps the old setting) and reboots. Then enter its new IP address in ControlHardwareConfig.json.
+
+If the sequencer can't be reached any more (e.g. a fixed IP address in the wrong subnet):
+- Discovery still finds it. Then `CLA_SetSequencerDHCPByMAC` or `CLA_SetSequencerFixedIPByMAC` (Python `set_sequencer_dhcp_by_mac`, `set_sequencer_fixed_ip_by_mac`) sets it by its MAC address with a UDP broadcast, which works across subnets and without ControlHardwareConfig.json. The sequencer reboots afterwards.
+- Or hold the Z-turn USR button (S1, MIO50) while switching the sequencer on, until it beeps twice (about 2 s after power-on; the RGB LED is yellow while the button is held, then green). This sets it back to DHCP. Discovery then reports "network settings reset by USR button at start-up".
+
+Firmware protocol: TCP commands `get_network_settings`, `set_network_settings`, UDP command `OpticsFoundry_set_network <MAC> dhcp|fixed <IP> <netmask> [<gateway>]` to port 57979; see network_settings.h. `get_firmware_info` also shows the current state of the USR button.
 
 Only one client can be connected to a sequencer at a time. A new TCP connection replaces the previous one, which is closed.
 
@@ -132,9 +145,7 @@ Only one client can be connected to a sequencer at a time. A new TCP connection 
 
 This code is based on the Vitis example "lwIP echo server". Most of the sequencer specific code is contained in firefly.c.
 
-To change the IP configuration (DHCP or static IP; the MAC address is computed in sequencer_identity.c) follow the instructions in
-
-C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundry_Seq_Zturn_App\src\main.c.
+The IP configuration (DHCP, fixed IP, link-local fallback) is set at run time, see above and network_settings.c; the MAC address is computed in sequencer_identity.c. The BSP must keep LWIP_DHCP enabled.
 
 Project specific TCP/IP communication code is contained in echo.c. An interpreter for a very simple programing language running on the ARM core of the MircroZed is implemented using the code in the OpticsFoundryCPUCommandSequencer folder.
 
@@ -184,7 +195,8 @@ The pinout to the Z-turn Board V2 header is defined under "Constraints -> constr
 ## ToDo
 
 Network and maintenance:
-- Command to set a fixed MAC address and/or a fixed IP address (or switch back to the defaults), stored in the settings sector of the QSPI flash (0xFF0000), with a way to reset it if the board becomes unreachable (e.g. a UDP command addressed by MAC address, or a button pressed at boot).
+- (done 2026-11-27: fixed IP address or DHCP with link-local fallback, reset by UDP command or USR button at power-on; MAC address and port deliberately not configurable)
+- Second reset button on the front panel, on an unused Z-turn header pin (needs a bitstream change, or an MIO pin).
 - "Trial boot": a watchdog plus confirmation of a new primary image by the PC, falling back to the backup image if a new image boots but doesn't work. Needs a modified FSBL.
 - Authentication of the PC, at least for firmware updates (signed images, or pairing with a button press).
 
