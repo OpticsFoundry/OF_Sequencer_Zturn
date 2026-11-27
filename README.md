@@ -59,6 +59,25 @@ Use [OpticsFoundry_ControlLight](https://github.com/opticsfoundry/OpticsFoundry_
 ![Using the Z-turn V2](Photos/using_Z-turn_V2.jpeg)
 **Photo 2:** Using the Z-turn V2; pay attention to setting JP2 to Closed.
 
+### Installing the firmware on a new board with an SD card (no JTAG programmer needed)
+
+A board with any other firmware in its QSPI flash (e.g. a factory fresh Z-turn) can be set up with an installer SD card:
+
+1. Format a microSD card with FAT32 (FAT16 also works). Copy    
+
+C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundry_Seq_Zturn_App_system\_ide\bootimage\BOOT.bin 
+
+onto it, named BOOT.BIN, and create an empty file named INSTALL (any extension, e.g. INSTALL.txt) next to it, both in the root folder.
+   To copy the firmware of a working board instead, put the card into the PC's card reader and call `CLA_CopySequencerFirmwareToSDCard(Sequencer, "E:\\")` (Python: `copy_sequencer_firmware_to_sd_card`, demo: `DemoCopySequencerFirmwareToSDCard()` in ControlLight.cpp). It reads the firmware from the board's QSPI flash over Ethernet (the image it booted from, after an SD card boot its primary image) and writes BOOT.BIN and INSTALL onto the card. `CLA_SaveSequencerFirmware(Sequencer, "file.bin")` saves that image as a file. Both need firmware from 2026-11-26 (evening) on, which has the Ethernet command `read_firmware_image`.
+2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. Make sure both jumpers are seated properly: with both jumpers open, the board doesn't boot at all.
+3. The firmware copies BOOT.BIN into both QSPI image slots (primary and backup) and verifies them. This takes about a minute. The status LED (LED1 on the front panel of the carrier board) is blue meanwhile, then green with two short beeps when the firmware was installed, or one short beep if the QSPI flash already contained exactly this image. Red and three long beeps mean an error; the USB UART output (115200 baud) and the firmware info (`DemoSequencerFirmwareInfo()`) give details. Don't switch the board off while the LED is blue. (If that happens anyway, simply boot from the installer card again.)
+4. Switch the board off, set both jumpers to Closed (QSPI boot mode), remove the SD card, and switch it on again.
+
+The carrier board's LED1 is an inverted copy of the Z-turn's onboard RGB LED. The firmware drives the LED such that LED1 on the front panel shows the intended colour, so the onboard LED shows the complementary colour (`STATUS_LED_ACTIVE_LOW` in FireflyControl.c).
+
+Without the INSTALL file, booting from the SD card works as described below and doesn't change the QSPI flash. The Ethernet command `install_from_sd` installs BOOT.BIN from an SD card inserted into a running board, independent of the boot mode and of the INSTALL file (see sd_installer.h).
+
+
 ## Updating the firmware over Ethernet
 
 Firmware built from this repository from 2026-11-26 on can write a new boot image into its own QSPI flash over Ethernet. No JTAG programmer is needed. (A board running older firmware needs to be updated once using JTAG, see above, or an SD card, see below.)
@@ -99,20 +118,6 @@ To recover from a failed update (e.g. a power failure during programming), to up
 2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. The boot mode jumpers are only read at power-on.
 3. If needed, use the Ethernet update described above to write the firmware into the QSPI flash.
 4. Switch the board off, set both jumpers to Closed (QSPI boot mode, Photo 2), and switch it on again.
-
-### Installing the firmware on a new board with an SD card (no JTAG programmer needed)
-
-A board with any other firmware in its QSPI flash (e.g. a factory fresh Z-turn) can be set up with an installer SD card:
-
-1. Format a microSD card with FAT32 (FAT16 also works). Copy BOOT.bin onto it, named BOOT.BIN, and create an empty file named INSTALL (any extension, e.g. INSTALL.txt) next to it, both in the root folder.
-   To copy the firmware of a working board instead, put the card into the PC's card reader and call `CLA_CopySequencerFirmwareToSDCard(Sequencer, "E:\\")` (Python: `copy_sequencer_firmware_to_sd_card`, demo: `DemoCopySequencerFirmwareToSDCard()` in ControlLight.cpp). It reads the firmware from the board's QSPI flash over Ethernet (the image it booted from, after an SD card boot its primary image) and writes BOOT.BIN and INSTALL onto the card. `CLA_SaveSequencerFirmware(Sequencer, "file.bin")` saves that image as a file. Both need firmware from 2026-11-26 (evening) on, which has the Ethernet command `read_firmware_image`.
-2. Switch the board off, set JP1 to Open and JP2 to Closed (SD card boot mode), insert the card, and switch the board on. Make sure both jumpers are seated properly: with both jumpers open, the board doesn't boot at all.
-3. The firmware copies BOOT.BIN into both QSPI image slots (primary and backup) and verifies them. This takes about a minute. The status LED (LED1 on the front panel of the carrier board) is blue meanwhile, then green with two short beeps when the firmware was installed, or one short beep if the QSPI flash already contained exactly this image. Red and three long beeps mean an error; the USB UART output (115200 baud) and the firmware info (`DemoSequencerFirmwareInfo()`) give details. Don't switch the board off while the LED is blue. (If that happens anyway, simply boot from the installer card again.)
-4. Switch the board off, set both jumpers to Closed (QSPI boot mode), remove the SD card, and switch it on again.
-
-The carrier board's LED1 is an inverted copy of the Z-turn's onboard RGB LED. The firmware drives the LED such that LED1 on the front panel shows the intended colour, so the onboard LED shows the complementary colour (`STATUS_LED_ACTIVE_LOW` in FireflyControl.c).
-
-Without the INSTALL file, booting from the SD card works as described above and doesn't change the QSPI flash. The Ethernet command `install_from_sd` installs BOOT.BIN from an SD card inserted into a running board, independent of the boot mode and of the INSTALL file (see sd_installer.h).
 
 ## MAC address and finding sequencers on the network
 
