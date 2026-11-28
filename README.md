@@ -209,7 +209,7 @@ The pinout to the Z-turn Board V2 header is defined under "Constraints -> constr
 Network and maintenance:
 - (done 2026-11-27: fixed IP address or DHCP with link-local fallback, reset by UDP command or USR button at power-on; MAC address and port deliberately not configurable)
 - Second reset button on the front panel, on an unused Z-turn header pin (needs a bitstream change, or an MIO pin).
-- Board ID from the DIP switches SW1 (PL pins R19, T19, G14, J15; 10K pull-up, switch on = low): add a 4 bit AXI GPIO input in the block design, move these pins from the leftover MicroZed ports to it, and report the pattern in the discovery answer. Needs a new bitstream and a hardware update of the Vitis platform (check that the FSBL trial boot changes survive it).
+- Board ID from the DIP switches SW1 (PL pins R19, T19, G14, J15; 10K pull-up, switch on = low): add a 4 bit AXI GPIO input in the block design, move these pins from the leftover MicroZed ports to it, and report the pattern in the discovery answer. Needs a new bitstream and a hardware update of the Vitis platform (check that the FSBL trial boot changes survive it). Be careful: before using these pins for the switches, check that they are truly not used by anything else, in particular on the OpticsFoundry carrier board (schematic of the carrier board and of the Z-turn, and every place in the FPGA design and firmware that uses `trigger_out`, `JX1_SE_1`, `ext_condition_1` or the PL UART).
 - (done 2026-11-27: "trial boot": a watchdog plus confirmation of a new primary image by the PC, falling back to the backup image if a new image boots but doesn't work; see "Trial boot" above)
 - Authentication of the PC, at least for firmware updates (signed images, or pairing with a button press).
 
