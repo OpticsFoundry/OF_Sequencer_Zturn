@@ -71,6 +71,8 @@ Firmware built from this repository from 2026-11-26 on can write a new boot imag
 
    C:\OpticsFoundry\OF_Sequencer_Zturn\OF_Sequencer_Zturn_Vitis_2023.1\OpticsFoundry_Seq_Zturn_App_system\_ide\bootimage\BOOT.bin
 
+   This file is only replaced by "Create Boot Image" (or the equivalent command line `D:\Xilinx\Vitis\2023.1\bin\bootgen.bat -arch zynq -image ...\_ide\bootimage\OpticsFoundry_Seq_Zturn_App_system.bif -w -o i ...\_ide\bootimage\BOOT.bin`). Building the application alone leaves an older BOOT.bin there. If in doubt, check the file date, or search the file for the build date string (e.g. "Nov 28 2026 14:15:50"), which `get_firmware_info` reports after installation.
+
 2. In [OpticsFoundry_ControlLight](https://github.com/opticsfoundry/OpticsFoundry_ControlLight), run `DemoUpdateSequencerFirmware()` in ControlLight.cpp. It calls `CLA_UpdateSequencerFirmware(0, "...\\BOOT.bin")` and then `CLA_RebootSequencerWithTrialBoot(0)` (see "Trial boot" below; `CLA_RebootSequencer(0)` reboots without trial). In Python, use `update_sequencer_firmware(0, path)` and `reboot_sequencer_with_trial_boot(0)` (or `reboot_sequencer(0)`).
 
 3. The update of a 4.4 MB image takes about 25 s (erase 14 s, program 8 s, read-back verification 1.5 s). Don't switch the board off during that time. After the reboot, the board is reachable again after about 10 s.
