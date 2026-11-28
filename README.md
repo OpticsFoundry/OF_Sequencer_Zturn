@@ -133,6 +133,8 @@ Firmware from 2026-11-26 on gives each board its own MAC address 02:4F:46:xx:xx:
 
 To find the sequencers and their IP addresses, e.g. for ControlHardwareConfig.json, run `DemoDiscoverSequencers()` in ControlLight.cpp (`CLA_DiscoverSequencers`, Python `discover_sequencers()`). It sends the UDP datagram "OpticsFoundry_discover" to port 57979 as broadcast on all network interfaces. Each sequencer answers with one line containing its MAC address, IP address, netmask, gateway, IP source (DHCP, fixed or link-local), TCP port, firmware build and boot status. Sequencers with an IP address of another subnet answer by broadcast, so they can be found, too.
 
+To tell several boards apart, hold the USR button of one Z-turn board while discovering: that board answers "USR button PRESSED" (since 2026-11-28). Don't hold it while switching the board on, which resets its network settings to DHCP. The 4 DIP switches SW1 of the Z-turn could serve as a board ID, but they are connected to PL pins (R19, T19, G14, J15, switch on = low), which the current FPGA design uses for leftover MicroZed ports (`trigger_out`, `JX1_SE_1`, `ext_condition_1`, PL UART RX); reading them needs a change of the Vivado design (see ToDo).
+
 ## IP address: DHCP or fixed (since 2026-11-27)
 
 - **DHCP** (factory setting): the board gets its IP address from a DHCP server. If none answers within 3 s, it uses a link-local address 169.254.x.y (netmask 255.255.0.0; x and y are derived from the MAC address, so the address is always the same for one board), as a PC without DHCP server does. A PC connected directly by cable then finds it without configuration, provided the PC's network adapter is also set to DHCP (Windows then also uses a 169.254.x.y address). DHCP keeps running in the background and replaces the link-local address when a server appears; if a DHCP lease is lost, the board returns to its link-local address after 3 s. (Before 2026-11-27 the fallback was 192.168.1.10.)
@@ -207,6 +209,7 @@ The pinout to the Z-turn Board V2 header is defined under "Constraints -> constr
 Network and maintenance:
 - (done 2026-11-27: fixed IP address or DHCP with link-local fallback, reset by UDP command or USR button at power-on; MAC address and port deliberately not configurable)
 - Second reset button on the front panel, on an unused Z-turn header pin (needs a bitstream change, or an MIO pin).
+- Board ID from the DIP switches SW1 (PL pins R19, T19, G14, J15; 10K pull-up, switch on = low): add a 4 bit AXI GPIO input in the block design, move these pins from the leftover MicroZed ports to it, and report the pattern in the discovery answer. Needs a new bitstream and a hardware update of the Vitis platform (check that the FSBL trial boot changes survive it).
 - (done 2026-11-27: "trial boot": a watchdog plus confirmation of a new primary image by the PC, falling back to the backup image if a new image boots but doesn't work; see "Trial boot" above)
 - Authentication of the PC, at least for firmware updates (signed images, or pairing with a button press).
 
